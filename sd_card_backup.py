@@ -8,17 +8,7 @@ import adafruit_ssd1306
 from pathlib import Path
 from datetime import datetime
 import uuid
-
-        # Shell scripts for system monitoring from here:
-        # https://unix.stackexchange.com/questions/119126/command-to-display-memory-usage-disk-usage-and-cpu-load
-        # cmd = "hostname -I | cut -d\' \' -f1"
-        # IP = subprocess.check_output(cmd, shell=True).decode("utf-8")
-        # cmd = "top -bn1 | grep load | awk '{printf \"CPU Load: %.2f\", $(NF-2)}'"
-        # CPU = subprocess.check_output(cmd, shell=True).decode("utf-8")
-        # cmd = "free -m | awk 'NR==2{printf \"Mem: %s/%s MB  %.2f%%\", $3,$2,$3*100/$2 }'"
-        # MemUsage = subprocess.check_output(cmd, shell=True).decode("utf-8")
-        # cmd = "df -h | awk '$NF==\"/\"{printf \"Disk: %d/%d GB  %s\", $3,$2,$5}'"
-        # Disk = subprocess.check_output(cmd, shell=True).decode("utf-8")
+from rsync_with_progress import rsync
 
 class Display:
     def __init__(self, disp):
@@ -31,7 +21,7 @@ class Display:
 
     def print(self, text):
         # self._reset()
-
+        print('logging:', text)
         padding = -2
         top = padding
         bottom = self.disp.height-padding
@@ -56,6 +46,7 @@ class Display:
         self.disp.image(image)
         self.disp.show()
 
+
 if __name__ == '__main__':
     # Create the I2C interface.
     i2c = busio.I2C(SCL, SDA)
@@ -73,8 +64,11 @@ if __name__ == '__main__':
     card_location = None
 
     while True:
+        Path('/media/backup').mkdir(exist_ok=True)
         if state == 0:
             d.print('Looking for backup device...')
+            # TODO: Improve check if backup device is found.
+
             if list(Path('/media/backup').glob('*')):
                 state += 1
                 time.sleep(2)
@@ -109,17 +103,12 @@ if __name__ == '__main__':
             
             try:
                 subprocess.check_output(f'mkdir -p /media/backup/{card_id}', shell=True).decode('utf-8')
-                output = subprocess.check_output(f'sudo rsync -avh /media/card/  /media/backup/{card_id}', shell=True).decode("utf-8") 
-                print(output)
+                rsync('/media/card/', f'/media/backup/{card_id}', d.print)
                 state += 1
             except subprocess.CalledProcessError:
                 d.print('Failed to backup card')
         elif state == 3:
             d.print('Done!')
+            exit()
 
         time.sleep(.1)
-
-# /dev/mmcblk0p1: LABEL_FATBOOT="boot" LABEL="boot" UUID="5203-DB74" TYPE="vfat" PARTUUID="6c586e13-01"
-# /dev/mmcblk0p2: LABEL="rootfs" UUID="2ab3f8e1-7dc6-43f5-b0db-dd5759d51d4e" TYPE="ext4" PARTUUID="6c586e13-02"
-# /dev/sda1: LABEL="Extreme SSD" UUID="76DD-4B90" TYPE="exfat" PARTUUID="001b675f-01"
-# /dev/sdb1: TYPE="exfat"
